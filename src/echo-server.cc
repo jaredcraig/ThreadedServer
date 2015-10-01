@@ -1,13 +1,13 @@
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <iostream>
-
 #include "inet-server.h"
 #include "buffer.h"
-#include <pthread.h>
 
 using namespace std;
+
+Buffer b;
+pthread_t threads[NUM_THREADS];
 
 void *threadHandle(void*);
 
@@ -26,37 +26,33 @@ int main(int argc, char **argv) {
 			break;
 		default:
 			cout << "server [-p port]" << endl;
-			exit(EXIT_FAILURE);
+			exit (EXIT_FAILURE);
 		}
 	}
-	
-	InetServer server = InetServer(port);
-	
-	
-	pthread_t tidA;
-	Buffer b;
-	
-	//pthread_t* tid = new pthread_t[THREADS];
-	
-	pthread_create(&tidA, NULL, &threadHandle, &b);
-	
- 	//for (long id = 1; id <= THREADS; id++) {
-	//	pthread_create(&tid[id], NULL, &Server::threadHandle, (void*)id);
-	//}
 
-	server.run(b);
+	InetServer server = InetServer(port);
+
+	for (int i = 0; i < NUM_THREADS; i++) {
+		int rc;
+		rc = pthread_create(&threads[i], NULL, &threadHandle, &server);
+		if (rc) {
+			cerr << "Unable to create thread, " << rc << endl;
+			exit(-1);
+		}
+	}
+	server.run(&b);
+
+	for (int i = 0; i < NUM_THREADS; i++) {
+		pthread_join(threads[i], NULL);
+	}
 }
 
 //-----------------------------------------------------------------------------
 void *threadHandle(void *vptr) {
-	Buffer *b;
-	
-	b = (Buffer*) vptr;
-	
-//	while(true) {
-//		int client = b->take();
-//		handle(client);
-//		b->append(client);
-//	}
-
+	while(1) {
+		Server *s = (Server*) vptr;
+		int client = b.take();
+		s->handle(client);
+		//b.append(client);
+	}
 }

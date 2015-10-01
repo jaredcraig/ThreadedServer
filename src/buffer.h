@@ -1,29 +1,29 @@
 #pragma once
 
-#include <pthread.h>
 #include <queue>
-
-#define CAPACITY 10
-#define THREADS 10
+#include <pthread.h>
+#include "inet-server.h"
 
 using namespace std;
+
+#define NUM_THREADS 10
+
 //------------------------------------------------------------------------------
 class Buffer {
 	private:
 		queue<int> buffer;
-		pthread_mutex_t lock;
-		pthread_cond_t not_full;
-		pthread_cond_t not_empty;
+		Server server;
+		pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+		pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
+		pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
+		pthread_cond_t not_handling = PTHREAD_COND_INITIALIZER;
 
 	public:
 		Buffer() {
-			pthread_mutex_init(&lock, NULL);
-			pthread_cond_init(&not_full, NULL);
-			pthread_cond_init(&not_empty, NULL);
 		}
 		void append(int c) {
 			pthread_mutex_lock(&lock);
-			while ( buffer.size() >= CAPACITY ) {
+			while ( buffer.size() >= NUM_THREADS ) {
 				pthread_cond_wait(&not_full, &lock);
 			}
 			buffer.push(c);
@@ -33,12 +33,17 @@ class Buffer {
 		int take() {
 			pthread_mutex_lock(&lock);
 			while(buffer.empty()) {
-				pthread_cond_wait(&not_full, &lock);
+				cout << pthread_self() << "    <take> waiting for condition(not_empty)" << endl;
+				pthread_cond_wait(&not_empty, &lock);
+				pthread_cond_wait(&not_handling, &lock);
 			}
 			int c = buffer.front();
-			buffer.pop();
+			cout << pthread_self() << "    <take> client: " << c << endl;
 			pthread_cond_signal(&not_full);
 			pthread_mutex_unlock(&lock);
+			buffer.pop();
 			return c;
 		}
+		int size() {return buffer.size();}
+		
 };

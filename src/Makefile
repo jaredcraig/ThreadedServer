@@ -8,7 +8,7 @@ OBJS =			$(ECHO-SERVER) $(ECHO-CLIENT)
 
 LIBS=
 
-CCFLAGS= -g
+CCFLAGS= -pthread -g 
 
 all:	echo-server echo-client
 

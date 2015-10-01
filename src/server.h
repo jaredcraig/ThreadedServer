@@ -13,8 +13,6 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <queue>
-#include <pthread.h>
 #include "buffer.h"
 
 using namespace std;
@@ -25,7 +23,7 @@ public:
 	Server();
 	~Server();
 
-	void run(Buffer &b);
+	void run(Buffer *b);
 
 	virtual void create();
 	virtual void close_socket();
@@ -49,6 +47,6 @@ public:
 	char* buf_;
 	string cache;
 
-	Buffer *b;
+	Buffer* buffer;
 };
 

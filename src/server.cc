@@ -11,9 +11,9 @@ Server::~Server() {
 }
 
 //-----------------------------------------------------------------------------
-void Server::run(Buffer & b) {
+void Server::run(Buffer *b) {
 	// create and run the server
-	b = b;
+	this->buffer = b;
 	create();
 	serve();
 }
@@ -33,36 +33,26 @@ void Server::serve() {
 	struct sockaddr_in client_addr;
 	socklen_t clientlen = sizeof(client_addr);
 
- // accept clients
+	// accept clients
 	while ((client = accept(server_, (struct sockaddr *) &client_addr,
 			&clientlen)) > 0) {
-	//	b.append(client);
+		buffer->append(client);
 	}
 	close_socket();
 }
 
 //-----------------------------------------------------------------------------
 void Server::handle(int client) {
-// loop to handle all requests
-	while (1) {
-		// get a request
-		memset(buf_, 0, buflen_ + 1);
-		int nread = recv(client, buf_, 1024, 0);
-		string data = buf_;
-		// break if client is done or an error occurred
-		if (nread == 0)
-			break;
-
-		cache = data;
-		string message = readMessage();
-
-		if (message == "")
-			continue;
-
+	// get a request
+	string data = get_request(client);
+	cache = data;
+	string message = readMessage();
+	if (message != "") {
 		string response = parse(message, client);
+		cout << pthread_self() << "    <SERVER> response: " << response;
 		send_response(client, response);
 	}
-	//close(client);
+//	close(client);
 }
 
 //-----------------------------------------------------------------------------
@@ -181,7 +171,7 @@ string Server::getMessage(string name, int index) {
 
 	if (index - 1 >= it->second.size())
 		return "";
-	vector<string> message = it->second[index - 1];
+	vector < string > message = it->second[index - 1];
 	string subject = message[0];
 	string data = message[1];
 
@@ -195,8 +185,8 @@ string Server::getMessage(string name, int index) {
 //-----------------------------------------------------------------------------
 bool Server::addMessage(string name, string subject, string &data) {
 	map<string, vector<vector<string> > >::iterator it;
-	vector<vector<string> > messageList;
-	vector<string> subject_data;
+	vector < vector<string> > messageList;
+	vector < string > subject_data;
 
 	it = messages.find(name);
 	if (it == messages.end()) {
@@ -242,6 +232,7 @@ string Server::get_request(int client) {
 	string request = "";
 // read until we get a newline
 	while (request.find("\n") == string::npos) {
+		memset(buf_, 0, buflen_ + 1);
 		int nread = recv(client, buf_, 1024, 0);
 		if (nread < 0) {
 			if (errno == EINTR)
