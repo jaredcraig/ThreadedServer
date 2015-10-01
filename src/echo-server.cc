@@ -53,6 +53,5 @@ void *threadHandle(void *vptr) {
 		Server *s = (Server*) vptr;
 		int client = b.take();
 		s->handle(client);
-		//b.append(client);
 	}
 }

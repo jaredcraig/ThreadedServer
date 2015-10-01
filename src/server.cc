@@ -44,15 +44,31 @@ void Server::serve() {
 //-----------------------------------------------------------------------------
 void Server::handle(int client) {
 	// get a request
-	string data = get_request(client);
-	cache = data;
-	string message = readMessage();
-	if (message != "") {
+	while(1) {
+		//buffer->start_handling();
+		string data = get_request(client);
+
+		cache = data;
+		string message = readMessage();
+
+		if (cache == "") {
+			break;
+		}
+
+		if (message == "")
+			continue;
+		
+		cout << pthread_self() << "    <SERVER> message: " << message;
+
+			
 		string response = parse(message, client);
 		cout << pthread_self() << "    <SERVER> response: " << response;
 		send_response(client, response);
+		
+		buffer->append(client);
+		buffer->done_handling();
 	}
-//	close(client);
+	close(client);
 }
 
 //-----------------------------------------------------------------------------
@@ -176,7 +192,7 @@ string Server::getMessage(string name, int index) {
 	string data = message[1];
 
 	ostringstream oss;
-	oss << "message " << subject << " " << data.size() << "\n" << data;
+	oss << "message " << subject << " " << data.size() << "\n" << data << "\n";
 	if (!oss.fail())
 		return oss.str();
 	return "";

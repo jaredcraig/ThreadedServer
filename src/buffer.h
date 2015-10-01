@@ -2,7 +2,7 @@
 
 #include <queue>
 #include <pthread.h>
-#include "inet-server.h"
+#include "server.h"
 
 using namespace std;
 
@@ -10,16 +10,25 @@ using namespace std;
 
 //------------------------------------------------------------------------------
 class Buffer {
-	private:
+
+	public:
+
 		queue<int> buffer;
-		Server server;
 		pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+		pthread_mutex_t handle_lock = PTHREAD_MUTEX_INITIALIZER;
 		pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
 		pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
 		pthread_cond_t not_handling = PTHREAD_COND_INITIALIZER;
 
-	public:
-		Buffer() {
+		Buffer() {}
+		void start_handling() {
+			pthread_mutex_lock(&handle_lock);
+			pthread_cond_wait(&not_handling, &handle_lock);
+		}
+		void done_handling() {
+			pthread_cond_signal(&not_handling);
+			pthread_mutex_unlock(&handle_lock);
+			cout << pthread_self() << "    <buffer> done handling\n---------------------------------------------\n";
 		}
 		void append(int c) {
 			pthread_mutex_lock(&lock);
@@ -35,13 +44,13 @@ class Buffer {
 			while(buffer.empty()) {
 				cout << pthread_self() << "    <take> waiting for condition(not_empty)" << endl;
 				pthread_cond_wait(&not_empty, &lock);
-				pthread_cond_wait(&not_handling, &lock);
 			}
 			int c = buffer.front();
-			cout << pthread_self() << "    <take> client: " << c << endl;
+			cout << "\n---------------------------------------------\n" << pthread_self() << "    <take> client: " << c << endl;
+			buffer.pop();
 			pthread_cond_signal(&not_full);
 			pthread_mutex_unlock(&lock);
-			buffer.pop();
+
 			return c;
 		}
 		int size() {return buffer.size();}
