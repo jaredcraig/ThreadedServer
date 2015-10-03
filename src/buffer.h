@@ -13,13 +13,17 @@ using namespace std;
 class Buffer {
 
 public:
-	bool handling;
-	map<int, string> client_cache;
-	queue<int> buffer;
+	
+	Buffer ();
 
-	pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-	pthread_mutex_t handle_lock = PTHREAD_MUTEX_INITIALIZER;
-	pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
+	
+	queue<int> buffer;
+	map<int, string> client_cache;
+
+	pthread_mutex_t lock;
+	pthread_cond_t not_empty;
+	void append(int c);
+	int take();
 
 	bool find(int c) {
 		return client_cache.find(c) != client_cache.end();
@@ -46,32 +50,8 @@ public:
 		if (client_cache.find(c) != client_cache.end()) {
 			client_cache.erase(c);
 		}
-		unlock_thread();
 	}
 
-	void lock_thread() {
-		pthread_mutex_lock (&handle_lock);
-	}
-	void unlock_thread() {
-		pthread_mutex_unlock (&handle_lock);
-	}
-	void append(int c) {
-		//cout << pthread_self() << "    <BUFFER> append: " << c << endl;
-		pthread_mutex_lock (&lock);
-		buffer.push(c);
-		pthread_cond_signal(&not_empty);
-		pthread_mutex_unlock (&lock);
-	}
-	int take() {
-		pthread_mutex_lock (&lock);
-		while (buffer.empty()) {
-			pthread_cond_wait(&not_empty, &lock);
-		}
-		int c = buffer.front();
-		buffer.pop();
-		pthread_mutex_unlock (&lock);
-		return c;
-	}
 	int size() {
 		return buffer.size();
 	}

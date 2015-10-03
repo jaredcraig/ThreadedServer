@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
 			exit(-1);
 		}
 	}
+
 	server.run(&b);
 
 	for (int i = 0; i < NUM_THREADS; i++) {
@@ -49,9 +50,8 @@ int main(int argc, char **argv) {
 
 //-----------------------------------------------------------------------------
 void *threadHandle(void *vptr) {
-	while(1) {
-		Server *s = (Server*) vptr;
-		int client = b.take();
-		s->handle(client);
-	}
+	Server *s = (Server*) vptr;
+	pthread_mutex_lock(&s->server_lock);
+	s->handle();
+	pthread_mutex_unlock(&s->server_lock);
 }

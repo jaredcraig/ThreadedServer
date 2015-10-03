@@ -4,7 +4,9 @@ Server::Server() {
 	// setup variables
 	buflen_ = 1024;
 	buf_ = new char[buflen_ + 1];
-}
+	
+	pthread_mutex_init(&server_lock, NULL);
+ }
 
 Server::~Server() {
 	delete buf_;
@@ -32,12 +34,13 @@ void Server::serve() {
 	int client;
 	struct sockaddr_in client_addr;
 	socklen_t clientlen = sizeof(client_addr);
-
 	// accept clients
 	while ((client = accept(server_, (struct sockaddr *) &client_addr,
 			&clientlen)) > 0) {
 		buffer->append(client);
+//		handle();
 	}
+	cout << "SERVER CLOSED SOCKET\n";
 	close_socket();
 }
 
@@ -46,13 +49,14 @@ bool Server::load_cache(int client) {
 	string data;
 	cache = "";
 
-	if (buffer->find(client)) {
+	if (buffer->find(client) && buffer->get_cache(client) != "") {
 		cache += buffer->get_cache(client);
 	} else {
 		data = get_request(client);
 		if (data == "") {
 			cerr << "<SERVER> client(" << client
 					<< ") Error 1: socket closed!\n";
+			cerr << "<SERVER> buffer size: " << buffer->size() << endl;
 			return false;
 		}
 		cache += data;
@@ -61,30 +65,32 @@ bool Server::load_cache(int client) {
 }
 
 //-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-void Server::handle(int client) {
-
-	string data;
-	buffer->lock_thread();
-
-	if (!load_cache(client))
-		return;
-
+void Server::handle() {
+//	if (!load_cache(client)) {
+//		buffer->unlock_thread();
+//		return;
+//	}
 	while (1) {
+		int client = buffer->take();
 		// process the message
+		
+		string data = get_request(client);
+		cache += data;
+
+		if (cache.empty())
+			break;
+		
 		string message = readMessage();
 
-		if (message == "") {
-			data = get_request(client);
-			if (data == "") {
-				cerr << "<SERVER> client(" << client
-						<< ") Error 2: socket closed!\n";
-				break;
-			}
-			cache += data;
-			continue;
-		}
+//		if (message == "") {
+//			data = get_request(client);
+//			if (data == "") {
+//				cerr << "<SERVER> client(" << client
+//						<< ") Error 2: socket closed!\ncache dump:\n" << cache;
+//				break;
+//			}
+//			continue;
+//		}
 
 		string response = parse(message, client);
 		send_response(client, response);
@@ -94,20 +100,12 @@ void Server::handle(int client) {
 		cout << pthread_self() << "\t<SERVER> " << client << " response: "
 				<< response;
 
-		if (send_response(client, "")) {
-			cerr << "<SERVER> client(" << client
-					<< ") Error 3: socket closed!\n";
-			break;
-		}
-		cache += data;
-		buffer->set_cache(client, cache);
+//		buffer->set_cache(client, cache);
 		buffer->append(client);
-		buffer->unlock_thread();
 		return;
 	}
-	buffer->erase(client);
+//	buffer->erase(client);
 }
-
 //-----------------------------------------------------------------------------
 string Server::readMessage() {
 	int index = cache.find("\n");

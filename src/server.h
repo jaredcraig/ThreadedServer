@@ -23,12 +23,13 @@ public:
 	Server();
 	~Server();
 
+	pthread_mutex_t server_lock;
 	void run(Buffer *b);
 
 	virtual void create();
 	virtual void close_socket();
 	void serve();
-	void handle(int);
+	void handle();
 	string parse(string&, int);
 	string get_request(int);
 	bool send_response(int, string);
