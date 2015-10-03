@@ -40,6 +40,7 @@ public:
 	string readMessage();
 	string readPut(int, int);
 	void *threadHandle(void *);
+	bool load_cache(int);
 
 	map<string, vector<vector<string> > > messages;
 	int server_;

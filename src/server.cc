@@ -42,33 +42,70 @@ void Server::serve() {
 }
 
 //-----------------------------------------------------------------------------
-void Server::handle(int client) {
-	// get a request
-	while(1) {
-		//buffer->start_handling();
-		string data = get_request(client);
+bool Server::load_cache(int client) {
+	string data;
+	cache = "";
 
-		cache = data;
+	if (buffer->find(client)) {
+		cache += buffer->get_cache(client);
+	} else {
+		data = get_request(client);
+		if (data == "") {
+			cerr << "<SERVER> client(" << client
+					<< ") Error 1: socket closed!\n";
+			return false;
+		}
+		cache += data;
+	}
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+void Server::handle(int client) {
+
+	string data;
+	buffer->lock_thread();
+
+	if (!load_cache(client))
+		return;
+
+	while (1) {
+		// process the message
 		string message = readMessage();
 
-		if (cache == "") {
-			break;
+		if (message == "") {
+			data = get_request(client);
+			if (data == "") {
+				cerr << "<SERVER> client(" << client
+						<< ") Error 2: socket closed!\n";
+				break;
+			}
+			cache += data;
+			continue;
 		}
 
-		if (message == "")
-			continue;
-		
-		cout << pthread_self() << "    <SERVER> message: " << message;
-
-			
 		string response = parse(message, client);
-		cout << pthread_self() << "    <SERVER> response: " << response;
 		send_response(client, response);
-		
+
+		cout << pthread_self() << "\t<SERVER> " << client << " message: "
+				<< message;
+		cout << pthread_self() << "\t<SERVER> " << client << " response: "
+				<< response;
+
+		if (send_response(client, "")) {
+			cerr << "<SERVER> client(" << client
+					<< ") Error 3: socket closed!\n";
+			break;
+		}
+		cache += data;
+		buffer->set_cache(client, cache);
 		buffer->append(client);
-		buffer->done_handling();
+		buffer->unlock_thread();
+		return;
 	}
-	close(client);
+	buffer->erase(client);
 }
 
 //-----------------------------------------------------------------------------
@@ -148,18 +185,21 @@ bool Server::resetMessages() {
 		messages.erase(it);
 		it++;
 	}
-	return messages.empty();
+	bool success = messages.empty();
+	return success;
 }
 
 //-----------------------------------------------------------------------------
 string Server::getSubjectList(string name) {
 	map<string, vector<vector<string> > >::iterator it;
+
 	it = messages.find(name);
 
 	if (it == messages.end())
 		return " 0\n";
 
-	return parseList(it->second);
+	string list = parseList(it->second);
+	return list;
 }
 
 //-----------------------------------------------------------------------------
@@ -226,9 +266,7 @@ string Server::readPut(int client, int length) {
 	string data = "";
 	data += cache;
 	while (data.size() < length) {
-		memset(buf_, 0, buflen_ + 1);
-		int nread = recv(client, buf_, 1024, 0);
-		string d = buf_;
+		string d = get_request(client);
 		if (d.empty()) {
 			return "";
 		}

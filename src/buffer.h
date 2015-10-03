@@ -2,6 +2,7 @@
 
 #include <queue>
 #include <pthread.h>
+#include <map>
 #include "server.h"
 
 using namespace std;
@@ -11,48 +12,68 @@ using namespace std;
 //------------------------------------------------------------------------------
 class Buffer {
 
-	public:
+public:
+	bool handling;
+	map<int, string> client_cache;
+	queue<int> buffer;
 
-		queue<int> buffer;
-		pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-		pthread_mutex_t handle_lock = PTHREAD_MUTEX_INITIALIZER;
-		pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
-		pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
-		pthread_cond_t not_handling = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutex_t handle_lock = PTHREAD_MUTEX_INITIALIZER;
+	pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
 
-		Buffer() {}
-		void start_handling() {
-			pthread_mutex_lock(&handle_lock);
-			pthread_cond_wait(&not_handling, &handle_lock);
+	bool find(int c) {
+		return client_cache.find(c) != client_cache.end();
+	}
+	void set_cache(int c, string s) {
+		map<int, string>::iterator it;
+		it = client_cache.find(c);
+		if (it == client_cache.end()) {
+			client_cache.insert(pair<int, string>(c, s));
+		} else {
+			it->second = s;
 		}
-		void done_handling() {
-			pthread_cond_signal(&not_handling);
-			pthread_mutex_unlock(&handle_lock);
-			cout << pthread_self() << "    <buffer> done handling\n---------------------------------------------\n";
+	}
+	string get_cache(int c) {
+		map<int, string>::iterator it;
+		it = client_cache.find(c);
+		if (it != client_cache.end()) {
+			string cache = it->second;
+			return cache;
 		}
-		void append(int c) {
-			pthread_mutex_lock(&lock);
-			while ( buffer.size() >= NUM_THREADS ) {
-				pthread_cond_wait(&not_full, &lock);
-			}
-			buffer.push(c);
-			pthread_cond_signal(&not_empty);
-			pthread_mutex_unlock(&lock);
+		return NULL;
+	}
+	void erase(int c) {
+		if (client_cache.find(c) != client_cache.end()) {
+			client_cache.erase(c);
 		}
-		int take() {
-			pthread_mutex_lock(&lock);
-			while(buffer.empty()) {
-				cout << pthread_self() << "    <take> waiting for condition(not_empty)" << endl;
-				pthread_cond_wait(&not_empty, &lock);
-			}
-			int c = buffer.front();
-			cout << "\n---------------------------------------------\n" << pthread_self() << "    <take> client: " << c << endl;
-			buffer.pop();
-			pthread_cond_signal(&not_full);
-			pthread_mutex_unlock(&lock);
+		unlock_thread();
+	}
 
-			return c;
+	void lock_thread() {
+		pthread_mutex_lock (&handle_lock);
+	}
+	void unlock_thread() {
+		pthread_mutex_unlock (&handle_lock);
+	}
+	void append(int c) {
+		//cout << pthread_self() << "    <BUFFER> append: " << c << endl;
+		pthread_mutex_lock (&lock);
+		buffer.push(c);
+		pthread_cond_signal(&not_empty);
+		pthread_mutex_unlock (&lock);
+	}
+	int take() {
+		pthread_mutex_lock (&lock);
+		while (buffer.empty()) {
+			pthread_cond_wait(&not_empty, &lock);
 		}
-		int size() {return buffer.size();}
-		
+		int c = buffer.front();
+		buffer.pop();
+		pthread_mutex_unlock (&lock);
+		return c;
+	}
+	int size() {
+		return buffer.size();
+	}
+
 };
